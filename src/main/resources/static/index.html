@@ -1,0 +1,49 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Star Wars Information Center</title>
+    <style>
+        body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
+        select, input, button { margin: 10px 0; padding: 5px; }
+        #result { margin-top: 20px; border: 1px solid #ddd; padding: 10px; }
+    </style>
+</head>
+<body>
+<h1>Star Wars Information Center</h1>
+<select id="type">
+    <option value="planets">Planets</option>
+    <option value="spaceships">Spaceships</option>
+    <option value="vehicles">Vehicles</option>
+    <option value="people">People</option>
+    <option value="films">Films</option>
+    <option value="species">Species</option>
+</select>
+<input type="text" id="name" placeholder="Enter name">
+<button onclick="fetchInfo()">Get Info</button>
+<div id="result"></div>
+
+<script>
+    function fetchInfo() {
+        const type = document.getElementById('type').value;
+        const name = document.getElementById('name').value;
+        const resultDiv = document.getElementById('result');
+
+        fetch(`/api/starwars/${type}/${name}`)
+            .then(response => {
+                if (!response.ok) {
+                    return response.json().then(err => { throw err; });
+                }
+                return response.json();
+            })
+            .then(data => {
+                resultDiv.innerHTML = `<pre>${JSON.stringify(data, null, 2)}</pre>`;
+            })
+            .catch(error => {
+                resultDiv.innerHTML = `Error: ${error.error || error.message || 'Unknown error'}`;
+            });
+    }
+</script>
+</body>
+</html>
