@@ -1,6 +1,7 @@
 # Star Wars Microservice
 
 A comprehensive microservice providing detailed information about various entities in the Star Wars universe, including planets, spaceships, vehicles, people, films, and species.
+A Sequence diagram is also attached in the repository for a quick overview of Design Pattern & code flow.
 
 ## Table of Contents
 1. [Features](#features)
@@ -80,7 +81,6 @@ src
 Swagger UI is available at `http://localhost:8080/swagger-ui.html` when the application is running. This provides an interactive interface to explore and test the API endpoints.
 
 ## Endpoints
-All endpoints require an API key to be sent in the `X-API-Key` header.
 
 - GET /api/starwars/planets/{name}
 - GET /api/starwars/spaceships/{name}
