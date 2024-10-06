@@ -1,0 +1,9 @@
+version: '3'
+services:
+  starwars-service:
+    build: .
+    ports:
+      - "8080:8080"
+    environment:
+      - SPRING_PROFILES_ACTIVE=prod
+      - STARWARS_API_BASE_URL=https://swapi.dev/api
