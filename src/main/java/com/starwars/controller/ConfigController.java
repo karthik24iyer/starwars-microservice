@@ -1,8 +1,9 @@
 package com.starwars.controller;
 
-import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.web.bind.annotation.*;
 import com.starwars.config.StarWarsProperties;
+import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.*;
 
 @RestController
 @RequestMapping("/api/config")
@@ -16,13 +17,16 @@ public class ConfigController {
     }
 
     @PostMapping("/toggle-offline-mode")
-    public String toggleOfflineMode(@RequestParam boolean offlineMode) {
-        starWarsProperties.setOfflineMode(offlineMode);
-        return "Offline mode set to: " + offlineMode;
+    public ResponseEntity<String> toggleOfflineMode(@RequestParam boolean enabled) {
+        starWarsProperties.setOfflineMode(enabled);
+        String message = enabled ? "Offline mode enabled" : "Offline mode disabled";
+        return ResponseEntity.ok(message);
     }
 
-    @GetMapping("/offline-mode")
-    public String getOfflineMode() {
-        return "Current offline mode: " + starWarsProperties.isOfflineMode();
+    @GetMapping("/offline-mode-status")
+    public ResponseEntity<String> getOfflineModeStatus() {
+        boolean status = starWarsProperties.isOfflineMode();
+        String message = status ? "Offline mode is currently enabled" : "Offline mode is currently disabled";
+        return ResponseEntity.ok(message);
     }
 }

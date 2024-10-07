@@ -3,10 +3,8 @@ package com.starwars.service;
 import com.starwars.model.response.*;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.beans.factory.annotation.Value;
-import org.springframework.cache.annotation.Cacheable;
+import org.springframework.cache.CacheManager;
 import org.springframework.stereotype.Service;
-import org.springframework.web.client.HttpClientErrorException;
-import org.springframework.web.client.RestClientException;
 import org.springframework.web.client.RestTemplate;
 import com.starwars.config.StarWarsProperties;
 import com.starwars.model.*;
@@ -20,23 +18,24 @@ public class StarWarsService {
 
     private final StarWarsProperties properties;
     private final RestTemplate restTemplate;
+    private final CacheManager cacheManager;
 
     @Value("${starwars.api.base-url}")
     private String apiBaseUrl;
 
     @Autowired
-    public StarWarsService(StarWarsProperties properties, RestTemplate restTemplate) {
+    public StarWarsService(StarWarsProperties properties, RestTemplate restTemplate, CacheManager cacheManager) {
         this.properties = properties;
         this.restTemplate = restTemplate;
+        this.cacheManager = cacheManager;
     }
 
-    @Cacheable(value = "planets", key = "#name", unless = "#result == null")
     public StarWarsResponse<Planet> getPlanetInfo(String name) {
         logger.info("Fetching information for planet: {}", name);
 
         if (properties.isOfflineMode()) {
             logger.info("Operating in offline mode");
-            return getOfflinePlanetInfo(name);
+            return getCachedOrOfflinePlanetInfo(name);
         }
 
         try {
@@ -48,27 +47,43 @@ public class StarWarsService {
             if (response != null && !response.getResults().isEmpty()) {
                 Planet planet = response.getResults().get(0);
                 logger.info("Successfully retrieved information for planet: {}", name);
-                return new StarWarsResponse<>(planet, "Information about planet " + name, true, false);
+                StarWarsResponse<Planet> starWarsResponse = new StarWarsResponse<>(planet, "Information about planet " + name, true, false);
+
+                cacheManager.getCache("planets").put(name, starWarsResponse);
+
+                return starWarsResponse;
             } else {
                 logger.warn("No information found for planet: {}", name);
                 return new StarWarsResponse<>(null, "Planet not found: " + name, false, false);
             }
-        } catch (HttpClientErrorException e) {
-            logger.error("HTTP error when fetching planet data: {}", e.getStatusCode(), e);
-            return new StarWarsResponse<>(null, "Error fetching planet data: " + e.getStatusCode(), false, false);
-        } catch (RestClientException e) {
-            logger.error("Error connecting to Star Wars API", e);
-            return new StarWarsResponse<>(null, "Error connecting to Star Wars API", false, false);
+        } catch (Exception e) {
+            logger.error("Error fetching planet data: ", e);
+            return getCachedOrOfflinePlanetInfo(name);
         }
     }
 
-    @Cacheable(value = "spaceships", key = "#name", unless = "#result == null")
+    private StarWarsResponse<Planet> getCachedOrOfflinePlanetInfo(String name) {
+        StarWarsResponse<Planet> cachedResponse = cacheManager.getCache("planets").get(name, StarWarsResponse.class);
+        if (cachedResponse != null) {
+            logger.info("Retrieved planet information from cache: {}", name);
+            return cachedResponse;
+        }
+
+        logger.info("No cached data found, returning offline data for planet: {}", name);
+        Planet planet = new Planet();
+        planet.setName(name);
+        planet.setClimate("Unknown (Offline Mode)");
+        planet.setTerrain("Unknown (Offline Mode)");
+        planet.setPopulation("Unknown (Offline Mode)");
+        return new StarWarsResponse<>(planet, "Offline mode: Information about planet " + name, true, true);
+    }
+
     public StarWarsResponse<Spaceship> getSpaceshipInfo(String name) {
         logger.info("Fetching information for spaceship: {}", name);
 
         if (properties.isOfflineMode()) {
             logger.info("Operating in offline mode");
-            return getOfflineSpaceshipInfo(name);
+            return getCachedOrOfflineSpaceshipInfo(name);
         }
 
         try {
@@ -80,27 +95,42 @@ public class StarWarsService {
             if (response != null && !response.getResults().isEmpty()) {
                 Spaceship spaceship = response.getResults().get(0);
                 logger.info("Successfully retrieved information for spaceship: {}", name);
-                return new StarWarsResponse<>(spaceship, "Information about spaceship " + name, true, false);
+                StarWarsResponse<Spaceship> starWarsResponse = new StarWarsResponse<>(spaceship, "Information about spaceship " + name, true, false);
+
+                cacheManager.getCache("spaceships").put(name, starWarsResponse);
+
+                return starWarsResponse;
             } else {
                 logger.warn("No information found for spaceship: {}", name);
                 return new StarWarsResponse<>(null, "Spaceship not found: " + name, false, false);
             }
-        } catch (HttpClientErrorException e) {
-            logger.error("HTTP error when fetching spaceship data: {}", e.getStatusCode(), e);
-            return new StarWarsResponse<>(null, "Error fetching spaceship data: " + e.getStatusCode(), false, false);
-        } catch (RestClientException e) {
-            logger.error("Error connecting to Star Wars API", e);
-            return new StarWarsResponse<>(null, "Error connecting to Star Wars API", false, false);
+        } catch (Exception e) {
+            logger.error("Error fetching spaceship data: ", e);
+            return getCachedOrOfflineSpaceshipInfo(name);
         }
     }
 
-    @Cacheable(value = "vehicles", key = "#name", unless = "#result == null")
+    private StarWarsResponse<Spaceship> getCachedOrOfflineSpaceshipInfo(String name) {
+        StarWarsResponse<Spaceship> cachedResponse = cacheManager.getCache("spaceships").get(name, StarWarsResponse.class);
+        if (cachedResponse != null) {
+            logger.info("Retrieved spaceship information from cache: {}", name);
+            return cachedResponse;
+        }
+
+        logger.info("No cached data found, returning offline data for spaceship: {}", name);
+        Spaceship spaceship = new Spaceship();
+        spaceship.setName(name);
+        spaceship.setModel("Unknown (Offline Mode)");
+        spaceship.setManufacturer("Unknown (Offline Mode)");
+        return new StarWarsResponse<>(spaceship, "Offline mode: Information about spaceship " + name, true, true);
+    }
+
     public StarWarsResponse<Vehicle> getVehicleInfo(String name) {
         logger.info("Fetching information for vehicle: {}", name);
 
         if (properties.isOfflineMode()) {
             logger.info("Operating in offline mode");
-            return getOfflineVehicleInfo(name);
+            return getCachedOrOfflineVehicleInfo(name);
         }
 
         try {
@@ -112,27 +142,42 @@ public class StarWarsService {
             if (response != null && !response.getResults().isEmpty()) {
                 Vehicle vehicle = response.getResults().get(0);
                 logger.info("Successfully retrieved information for vehicle: {}", name);
-                return new StarWarsResponse<>(vehicle, "Information about vehicle " + name, true, false);
+                StarWarsResponse<Vehicle> starWarsResponse = new StarWarsResponse<>(vehicle, "Information about vehicle " + name, true, false);
+
+                cacheManager.getCache("vehicles").put(name, starWarsResponse);
+
+                return starWarsResponse;
             } else {
                 logger.warn("No information found for vehicle: {}", name);
                 return new StarWarsResponse<>(null, "Vehicle not found: " + name, false, false);
             }
-        } catch (HttpClientErrorException e) {
-            logger.error("HTTP error when fetching vehicle data: {}", e.getStatusCode(), e);
-            return new StarWarsResponse<>(null, "Error fetching vehicle data: " + e.getStatusCode(), false, false);
-        } catch (RestClientException e) {
-            logger.error("Error connecting to Star Wars API", e);
-            return new StarWarsResponse<>(null, "Error connecting to Star Wars API", false, false);
+        } catch (Exception e) {
+            logger.error("Error fetching vehicle data: ", e);
+            return getCachedOrOfflineVehicleInfo(name);
         }
     }
 
-    @Cacheable(value = "people", key = "#name", unless = "#result == null")
+    private StarWarsResponse<Vehicle> getCachedOrOfflineVehicleInfo(String name) {
+        StarWarsResponse<Vehicle> cachedResponse = cacheManager.getCache("vehicles").get(name, StarWarsResponse.class);
+        if (cachedResponse != null) {
+            logger.info("Retrieved vehicle information from cache: {}", name);
+            return cachedResponse;
+        }
+
+        logger.info("No cached data found, returning offline data for vehicle: {}", name);
+        Vehicle vehicle = new Vehicle();
+        vehicle.setName(name);
+        vehicle.setModel("Unknown (Offline Mode)");
+        vehicle.setManufacturer("Unknown (Offline Mode)");
+        return new StarWarsResponse<>(vehicle, "Offline mode: Information about vehicle " + name, true, true);
+    }
+
     public StarWarsResponse<Person> getPersonInfo(String name) {
         logger.info("Fetching information for person: {}", name);
 
         if (properties.isOfflineMode()) {
             logger.info("Operating in offline mode");
-            return getOfflinePersonInfo(name);
+            return getCachedOrOfflinePersonInfo(name);
         }
 
         try {
@@ -144,27 +189,42 @@ public class StarWarsService {
             if (response != null && !response.getResults().isEmpty()) {
                 Person person = response.getResults().get(0);
                 logger.info("Successfully retrieved information for person: {}", name);
-                return new StarWarsResponse<>(person, "Information about person " + name, true, false);
+                StarWarsResponse<Person> starWarsResponse = new StarWarsResponse<>(person, "Information about person " + name, true, false);
+
+                cacheManager.getCache("people").put(name, starWarsResponse);
+
+                return starWarsResponse;
             } else {
                 logger.warn("No information found for person: {}", name);
                 return new StarWarsResponse<>(null, "Person not found: " + name, false, false);
             }
-        } catch (HttpClientErrorException e) {
-            logger.error("HTTP error when fetching person data: {}", e.getStatusCode(), e);
-            return new StarWarsResponse<>(null, "Error fetching person data: " + e.getStatusCode(), false, false);
-        } catch (RestClientException e) {
-            logger.error("Error connecting to Star Wars API", e);
-            return new StarWarsResponse<>(null, "Error connecting to Star Wars API", false, false);
+        } catch (Exception e) {
+            logger.error("Error fetching person data: ", e);
+            return getCachedOrOfflinePersonInfo(name);
         }
     }
 
-    @Cacheable(value = "films", key = "#name", unless = "#result == null")
+    private StarWarsResponse<Person> getCachedOrOfflinePersonInfo(String name) {
+        StarWarsResponse<Person> cachedResponse = cacheManager.getCache("people").get(name, StarWarsResponse.class);
+        if (cachedResponse != null) {
+            logger.info("Retrieved person information from cache: {}", name);
+            return cachedResponse;
+        }
+
+        logger.info("No cached data found, returning offline data for person: {}", name);
+        Person person = new Person();
+        person.setName(name);
+        person.setBirthYear("Unknown (Offline Mode)");
+        person.setGender("Unknown (Offline Mode)");
+        return new StarWarsResponse<>(person, "Offline mode: Information about person " + name, true, true);
+    }
+
     public StarWarsResponse<Film> getFilmInfo(String name) {
         logger.info("Fetching information for film: {}", name);
 
         if (properties.isOfflineMode()) {
             logger.info("Operating in offline mode");
-            return getOfflineFilmInfo(name);
+            return getCachedOrOfflineFilmInfo(name);
         }
 
         try {
@@ -176,27 +236,42 @@ public class StarWarsService {
             if (response != null && !response.getResults().isEmpty()) {
                 Film film = response.getResults().get(0);
                 logger.info("Successfully retrieved information for film: {}", name);
-                return new StarWarsResponse<>(film, "Information about film " + name, true, false);
+                StarWarsResponse<Film> starWarsResponse = new StarWarsResponse<>(film, "Information about film " + name, true, false);
+
+                cacheManager.getCache("films").put(name, starWarsResponse);
+
+                return starWarsResponse;
             } else {
                 logger.warn("No information found for film: {}", name);
                 return new StarWarsResponse<>(null, "Film not found: " + name, false, false);
             }
-        } catch (HttpClientErrorException e) {
-            logger.error("HTTP error when fetching film data: {}", e.getStatusCode(), e);
-            return new StarWarsResponse<>(null, "Error fetching film data: " + e.getStatusCode(), false, false);
-        } catch (RestClientException e) {
-            logger.error("Error connecting to Star Wars API", e);
-            return new StarWarsResponse<>(null, "Error connecting to Star Wars API", false, false);
+        } catch (Exception e) {
+            logger.error("Error fetching film data: ", e);
+            return getCachedOrOfflineFilmInfo(name);
         }
     }
 
-    @Cacheable(value = "species", key = "#name", unless = "#result == null")
+    private StarWarsResponse<Film> getCachedOrOfflineFilmInfo(String name) {
+        StarWarsResponse<Film> cachedResponse = cacheManager.getCache("films").get(name, StarWarsResponse.class);
+        if (cachedResponse != null) {
+            logger.info("Retrieved film information from cache: {}", name);
+            return cachedResponse;
+        }
+
+        logger.info("No cached data found, returning offline data for film: {}", name);
+        Film film = new Film();
+        film.setTitle(name);
+        film.setDirector("Unknown (Offline Mode)");
+        film.setReleaseDate("Unknown (Offline Mode)");
+        return new StarWarsResponse<>(film, "Offline mode: Information about film " + name, true, true);
+    }
+
     public StarWarsResponse<Species> getSpeciesInfo(String name) {
         logger.info("Fetching information for species: {}", name);
 
         if (properties.isOfflineMode()) {
             logger.info("Operating in offline mode");
-            return getOfflineSpeciesInfo(name);
+            return getCachedOrOfflineSpeciesInfo(name);
         }
 
         try {
@@ -208,72 +283,33 @@ public class StarWarsService {
             if (response != null && !response.getResults().isEmpty()) {
                 Species species = response.getResults().get(0);
                 logger.info("Successfully retrieved information for species: {}", name);
-                return new StarWarsResponse<>(species, "Information about species " + name, true, false);
+                StarWarsResponse<Species> starWarsResponse = new StarWarsResponse<>(species, "Information about species " + name, true, false);
+
+                cacheManager.getCache("species").put(name, starWarsResponse);
+
+                return starWarsResponse;
             } else {
                 logger.warn("No information found for species: {}", name);
                 return new StarWarsResponse<>(null, "Species not found: " + name, false, false);
             }
-        } catch (HttpClientErrorException e) {
-            logger.error("HTTP error when fetching species data: {}", e.getStatusCode(), e);
-            return new StarWarsResponse<>(null, "Error fetching species data: " + e.getStatusCode(), false, false);
-        } catch (RestClientException e) {
-            logger.error("Error connecting to Star Wars API", e);
-            return new StarWarsResponse<>(null, "Error connecting to Star Wars API", false, false);
+        } catch (Exception e) {
+            logger.error("Error fetching species data: ", e);
+            return getCachedOrOfflineSpeciesInfo(name);
         }
     }
 
-    private StarWarsResponse<Planet> getOfflinePlanetInfo(String name) {
-        Planet planet = new Planet();
-        planet.setName(name);
-        planet.setClimate("Unknown (Offline Mode)");
-        planet.setTerrain("Unknown (Offline Mode)");
-        planet.setPopulation("Unknown (Offline Mode)");
-        return new StarWarsResponse<>(planet, "Offline mode: Information about planet " + name, true, true);
-    }
+    private StarWarsResponse<Species> getCachedOrOfflineSpeciesInfo(String name) {
+        StarWarsResponse<Species> cachedResponse = cacheManager.getCache("species").get(name, StarWarsResponse.class);
+        if (cachedResponse != null) {
+            logger.info("Retrieved species information from cache: {}", name);
+            return cachedResponse;
+        }
 
-    private StarWarsResponse<Spaceship> getOfflineSpaceshipInfo(String name) {
-        Spaceship spaceship = new Spaceship();
-        spaceship.setName(name);
-        spaceship.setModel("Unknown (Offline Mode)");
-        spaceship.setManufacturer("Unknown (Offline Mode)");
-        spaceship.setCrew("Unknown (Offline Mode)");
-        return new StarWarsResponse<>(spaceship, "Offline mode: Information about spaceship " + name, true, true);
-    }
-
-    private StarWarsResponse<Vehicle> getOfflineVehicleInfo(String name) {
-        Vehicle vehicle = new Vehicle();
-        vehicle.setName(name);
-        vehicle.setModel("Unknown (Offline Mode)");
-        vehicle.setManufacturer("Unknown (Offline Mode)");
-        vehicle.setVehicleClass("Unknown (Offline Mode)");
-        return new StarWarsResponse<>(vehicle, "Offline mode: Information about vehicle " + name, true, true);
-    }
-
-    private StarWarsResponse<Person> getOfflinePersonInfo(String name) {
-        Person person = new Person();
-        person.setName(name);
-        person.setBirthYear("Unknown (Offline Mode)");
-        person.setGender("Unknown (Offline Mode)");
-        person.setHomeworld("Unknown (Offline Mode)");
-        return new StarWarsResponse<>(person, "Offline mode: Information about person " + name, true, true);
-    }
-
-    private StarWarsResponse<Film> getOfflineFilmInfo(String name) {
-        Film film = new Film();
-        film.setTitle(name);
-        film.setEpisodeId(0);
-        film.setDirector("Unknown (Offline Mode)");
-        film.setReleaseDate("Unknown (Offline Mode)");
-        return new StarWarsResponse<>(film, "Offline mode: Information about film " + name, true, true);
-    }
-
-    private StarWarsResponse<Species> getOfflineSpeciesInfo(String name) {
+        logger.info("No cached data found, returning offline data for species: {}", name);
         Species species = new Species();
         species.setName(name);
         species.setClassification("Unknown (Offline Mode)");
         species.setDesignation("Unknown (Offline Mode)");
-        species.setAverageLifespan("Unknown (Offline Mode)");
-        species.setHomeworld("Unknown (Offline Mode)");
         return new StarWarsResponse<>(species, "Offline mode: Information about species " + name, true, true);
     }
 }

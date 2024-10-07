@@ -8,10 +8,26 @@
         body { font-family: Arial, sans-serif; max-width: 800px; margin: 0 auto; padding: 20px; }
         select, input, button { margin: 10px 0; padding: 5px; }
         #result { margin-top: 20px; border: 1px solid #ddd; padding: 10px; }
+        .switch { position: relative; display: inline-block; width: 60px; height: 34px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #ccc; transition: .4s; border-radius: 34px; }
+        .slider:before { position: absolute; content: ""; height: 26px; width: 26px; left: 4px; bottom: 4px; background-color: white; transition: .4s; border-radius: 50%; }
+        input:checked + .slider { background-color: #2196F3; }
+        input:checked + .slider:before { transform: translateX(26px); }
+        #modeStatus { margin-left: 10px; }
     </style>
 </head>
 <body>
 <h1>Star Wars Information Center</h1>
+
+<div>
+    <label class="switch">
+        <input type="checkbox" id="offlineToggle">
+        <span class="slider"></span>
+    </label>
+    <span id="modeStatus">Online Mode</span>
+</div>
+
 <select id="type">
     <option value="planets">Planets</option>
     <option value="spaceships">Spaceships</option>
@@ -25,6 +41,31 @@
 <div id="result"></div>
 
 <script>
+    const offlineToggle = document.getElementById('offlineToggle');
+    const modeStatus = document.getElementById('modeStatus');
+
+    // Check initial offline mode status
+    fetch('/api/config/offline-mode-status')
+        .then(response => response.text())
+        .then(status => {
+            offlineToggle.checked = status.includes('enabled');
+            updateModeStatus();
+        });
+
+    offlineToggle.addEventListener('change', function() {
+        fetch('/api/config/toggle-offline-mode?enabled=' + this.checked, { method: 'POST' })
+            .then(response => response.text())
+            .then(result => {
+                console.log(result);
+                updateModeStatus();
+            })
+            .catch(error => console.error('Error:', error));
+    });
+
+    function updateModeStatus() {
+        modeStatus.textContent = offlineToggle.checked ? 'Offline Mode' : 'Online Mode';
+    }
+
     function fetchInfo() {
         const type = document.getElementById('type').value;
         const name = document.getElementById('name').value;
@@ -44,6 +85,24 @@
                 resultDiv.innerHTML = `Error: ${error.error || error.message || 'Unknown error'}`;
             });
     }
+
+    offlineToggle.addEventListener('change', function() {
+        fetch('/api/config/toggle-offline-mode?enabled=' + this.checked, { method: 'POST' })
+            .then(response => response.text())
+            .then(result => {
+                console.log(result);
+                updateModeStatus();
+            })
+            .catch(error => console.error('Error:', error));
+    });
+
+    fetch('/api/config/offline-mode-status')
+        .then(response => response.text())
+        .then(status => {
+            offlineToggle.checked = status.includes('enabled');
+            updateModeStatus();
+        });
+
 </script>
 </body>
 </html>
